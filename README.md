@@ -34,3 +34,18 @@ grunt.registerTask('default', ['less2sass2stylus2css']);
 
 Your Sourcefile could be a LESS or a SCSS or a Stylus.
 Your Targetfile could be either a LESS or a SCSS or a Stylus or a CSS.
+
+##Attention
+
+From Stylus to LESS or SCSS you can have only two nestings like:
+
+```css
+content
+  float: left
+  width: 20px
+  &:hover
+    width: 40px
+	box
+	  color: #fff
+	
+	
