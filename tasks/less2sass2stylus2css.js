@@ -1,4 +1,5 @@
 'use strict';
+
 var async = require('async');
 var path = require('path');
 var _ = require('lodash');
@@ -71,7 +72,21 @@ module.exports = function(grunt){
       }
       if(f.src[0].split(".").pop() == 'sass' || f.src[0].split(".").pop() == 'scss'){
 	      if(destFile.split(".").pop() == 'css'){
-
+	      	var sass = require('node-sass');
+	      	sass.render({
+						file: f.src[0],
+						success: function (css) {
+							grunt.file.write(destFile, css);
+							grunt.log.writeln('File "' + destFile + '" created.');
+							nextFileObj();
+						},
+						error: function (err) {
+							grunt.warn(err);
+						},
+						includePaths: options.includePaths,
+						outputStyle: options.outputStyle,
+						sourceComments: options.sourceComments
+					});
 				} else if(f.src[0].split(".").pop() == 'scss' && destFile.split(".").pop() == 'less'){
 		      var lessCode;
 		      var i = 0;
@@ -132,6 +147,10 @@ module.exports = function(grunt){
 		  
 					var stylus = convertStyl(fs.readFileSync(sourceFile, "utf-8"));
 					fs.writeFileSync(destFile, stylus);
+
+					if(stylus != ''){
+						grunt.verbose.writeln('File ' + chalk.cyan(destFile) + ' created.');
+					}
 		    }
 		  }else if(f.src[0].split(".").pop() == 'less'){
 		  	if(destFile.split(".").pop() == 'css'){
@@ -229,6 +248,11 @@ module.exports = function(grunt){
 				  
 					var stylus = convertLess(fs.readFileSync(f.src[0], "utf-8"));
 					fs.writeFileSync(destFile, stylus);
+
+					if(stylus != ''){
+						grunt.verbose.writeln('File ' + chalk.cyan(destFile) + ' created.');
+					}
+
 		  	}else if(destFile.split(".").pop() == 'scss'){
 		  		var scssConvert = function(less) {
 
@@ -246,8 +270,14 @@ module.exports = function(grunt){
 					var sass = scssConvert(fs.readFileSync(f.src[0], "utf-8"));
 					fs.writeFileSync(destFile, sass);
 
+					if(sass != ''){
+						grunt.verbose.writeln('File ' + chalk.cyan(destFile) + ' created.');
+					}
 		  	}
 		  }else if(f.src[0].split(".").pop() == 'styl'){
+		  	if(destFile.split(".").pop() == '' || destFile.split(".").pop() != 'css' || destFile.split(".").pop() != 'scss' || destFile.split(".").pop() != 'less'){
+		  		grunt.log.warn('Destination ' + chalk.cyan(destFile) + ' not written because an Error.');
+		  	}
 		  	if(destFile.split(".").pop() == 'css'){
 
 		  		var destFile = path.normalize(f.dest);
@@ -287,7 +317,7 @@ module.exports = function(grunt){
 		      });
 		  	}else if(destFile.split(".").pop() == 'less'){
 		  		var convertStylLess = function (stylus) {
-						return stylus
+						var stylus = stylus
 
 						.replace(/\*([^*]|[\r\n]|(\*([^\/]|[\r\n])))*\*/g, "")
 						//add class selector and opening bracket
@@ -321,8 +351,8 @@ module.exports = function(grunt){
 						//remove unused bracket
 						.replace(/( [-a-zA-Z:]+\([-0-9]+)(\.)([a-zA-Z]+)(\{)(\))/g, "$1$3$5")	 
 						//remove unused bracket
-						.replace(/( \.)([a-zA-Z]+)(\{)(:)( \.)([a-zA-Z]+)(\{)(\([-0-9]+)(\.)([a-zA-Z]+)(\{)(\))/g, "$2$4$6$8$10$12")	
-						.replace(/( \.)([a-zA-Z-]+)(\{)(:)( \.?)([0-9a-zA-Z]+|[a-zA-Z]+)(\{?)([-0-9a-zA-Z]+)(\{?)(%?)/g, "$2$4$6$8$10")
+						.replace(/( \.)([a-zA-Z]+)(\{)(:)( \.)([a-zA-Z]+)(\{)(\([-0-9]+)(\.)([a-zA-Z]+)(\{)(\))/g, " $2$4$6$8$10$12")	
+						.replace(/( \.)([a-zA-Z-]+)(\{)(:)( \.?)([0-9a-zA-Z]+|[a-zA-Z]+)(\{?)([-0-9a-zA-Z]+)(\{?)(%?)/g, " $2$4$6$8$10")
 						//add semicolon
 						.replace(/(( [-a-zA-Z:]+)(\([0-9]\, [0-9]\)|\([0-9]\.[0-9]\, [0-9]\.[0-9]\)|\([0-9]+[a-zA-Z]+\)| [0-9a-zA-Z]+|[0-9a-zA-Z%]+|\([-0-9a-zA-Z]+\)|))/g, "$1;")
 						//.replace(/(( [-a-zA-Z:]+)(\([0-9]\, [0-9]\)|\([0-9]\.[0-9]\, [0-9]\.[0-9]\)|\([0-9]+[a-zA-Z]+\)|))/g, "$1;")
@@ -335,27 +365,114 @@ module.exports = function(grunt){
 						//remove unused semicolon
 						.replace(/([-a-zA-Z]+:)(\;)(@[a-zA-Z]+)/g, "$1$3")
 
-						.replace(/(\.)(\.[a-zA-Z-]+\{)/g, "$2")
+						.replace(/(\.)(\.[a-zA-Z-]+\{)/g, "$2");
 
+						var newStylus = "";
+						 
+						var lastTabCount = 0;
+						var currentTabCount = 0;
+						var lines = stylus.split("\n");
+						 
+						for (var i = 0; i < lines.length; i++) {
+	            var line = lines[i];
+	            
+	            if(!line.match(/([a-z]+)/g)) {
+                newStylus += "\n" + line;
+                continue;
+	            }
+	           
+	          	if(line.match(/(  )/g) == null){
+	          		currentTabCount = 0;
+          		}else{
+	          		currentTabCount = line.match(/(  )/g).length;
+	          	}
+	        
+	            if(lastTabCount > currentTabCount) {
+								newStylus += "\n}\n" + line;							
+	            } else {
+                newStylus += "\n" + line;
+	            }
+	         
+	           	if(line == lines[lines.length -1]){
+	            	newStylus += "\n}\n";
+	            }
 
+	            lastTabCount = currentTabCount;
+	           
+						}
 
-						//.replace(/(\.)([a-zA-Z-]+)(\{)/g, "$2")
+						var newStylus2 = "";
+						var lastTabCount2 = 0;
+						var currentTabCount2 = 0;
+						var lines2 = newStylus.split("\n");
+						 
+						for (var j = 0; j < lines2.length; j++) {
+	            var line2 = lines2[j];
+	            
+	            if(!line.match(/([a-z]+)/g)) {
+                newStylus2 += "\n" + line2;
+                continue;
+	            }
+	           
+	          	if(line2.match(/(    )/g) == null){
+	          		currentTabCount2 = 0;
+          		}else{
+	          		currentTabCount2 = line2.match(/(    )/g).length;
+	          	}
+	        
+	            if(lastTabCount2 > currentTabCount2) {
+								newStylus2 += "\n  }\n" + line2;							
+	            } else {
+                newStylus2 += "\n" + line2;
+	            }
+	         	         
+	            lastTabCount2 = currentTabCount2;
+	           
+						}
 
-						//.replace(/(([a-zA-Z-]+: [0-9]+[a-zA-Z]+)|([a-zA-Z-]+: [a-zA-Z-0-9]+\%?)|([a-zA-Z-]+: \.[0-9a-zA-Z]+))/g, "$1;")
+						var newStylus3 = "";
+						var lastTabCount3 = 0;
+						var currentTabCount3 = 0;
+						var lines3 = newStylus2.split("\n");
+						 
+						for (var k = 0; k < lines3.length; k++) {
+	            var line3 = lines3[k];
+	            
+	            if(!line.match(/([a-z]+)/g)) {
+                newStylus3 += "\n" + line3;
+                continue;
+	            }
+	           
+	          	if(line3.match(/(      )/g) == null){
+	          		currentTabCount3 = 0;
+          		}else{
+	          		currentTabCount3 = line3.match(/(      )/g).length;
+	          	}
+	        
+	            if(lastTabCount3 > currentTabCount3) {
+								newStylus3 += "\n    }\n" + line3;							
+	            } else {
+                newStylus3 += "\n" + line3;
+	            }
+	         	         
+	            lastTabCount3 = currentTabCount3;
+	           
+						}
 
-						
-
-
-						//add ending bracket
-						//.replace(/(.[a-zA-Z]+\(\)\{\n[^][ -a-zA-Z]+\n[^][ -a-zA-Z][^]+)(\.)/g, "$1\n}\n$2")
+						//grunt.log.writeln(newStylus3);
+						return newStylus3;
 					}
 				  
 					var less = convertStylLess(fs.readFileSync(f.src[0], "utf-8"));
 					fs.writeFileSync(destFile, less);
 
+					if(less != ''){
+						grunt.verbose.writeln('File ' + chalk.cyan(destFile) + ' created.');
+					}
+
 		  	}else if(destFile.split(".").pop() == 'scss'){
 		  		var convertStylScss = function (stylus) {
-						return stylus
+						var stylus = stylus
 
 						.replace(/\*([^*]|[\r\n]|(\*([^\/]|[\r\n])))*\*/g, "")
 						//add class selector and opening bracket
@@ -389,8 +506,8 @@ module.exports = function(grunt){
 						//remove unused bracket
 						.replace(/( [-a-zA-Z:]+\([-0-9]+)(\.)([a-zA-Z]+)(\{)(\))/g, "$1$3$5")	 
 						//remove unused bracket
-						.replace(/( \.)([a-zA-Z]+)(\{)(:)( \.)([a-zA-Z]+)(\{)(\([-0-9]+)(\.)([a-zA-Z]+)(\{)(\))/g, "$2$4$6$8$10$12")	
-						.replace(/( \.)([a-zA-Z-]+)(\{)(:)( \.?)([0-9a-zA-Z]+|[a-zA-Z]+)(\{?)([-0-9a-zA-Z]+)(\{?)(%?)/g, "$2$4$6$8$10")
+						.replace(/( \.)([a-zA-Z]+)(\{)(:)( \.)([a-zA-Z]+)(\{)(\([-0-9]+)(\.)([a-zA-Z]+)(\{)(\))/g, " $2$4$6$8$10$12")	
+						.replace(/( \.)([a-zA-Z-]+)(\{)(:)( \.?)([0-9a-zA-Z]+|[a-zA-Z]+)(\{?)([-0-9a-zA-Z]+)(\{?)(%?)/g, " $2$4$6$8$10")
 						//add semicolon
 						.replace(/(( [-a-zA-Z:]+)(\([0-9]\, [0-9]\)|\([0-9]\.[0-9]\, [0-9]\.[0-9]\)|\([0-9]+[a-zA-Z]+\)| [0-9a-zA-Z]+|[0-9a-zA-Z%]+|\([-0-9a-zA-Z]+\)|))/g, "$1;")
 						//.replace(/(( [-a-zA-Z:]+)(\([0-9]\, [0-9]\)|\([0-9]\.[0-9]\, [0-9]\.[0-9]\)|\([0-9]+[a-zA-Z]+\)|))/g, "$1;")
@@ -415,21 +532,110 @@ module.exports = function(grunt){
 
 						.replace(/(\.)([a-zA-Z-]+\(\$[a-zA-Z-]+\))/g, "@mixin $2")
 
-						.replace(/(\:)(\$[a-zA-Z-]+)/g, "$1 #{$2}")
+						.replace(/(\:)(\$[a-zA-Z-]+)/g, "$1 #{$2}");
 
-						//.replace(/(\.)([a-zA-Z-]+)(\{)/g, "$2")
+						var newStylus = "";
+						 
+						var lastTabCount = 0;
+						var currentTabCount = 0;
+						var lines = stylus.split("\n");
+						 
+						for (var i = 0; i < lines.length; i++) {
+	            var line = lines[i];
+	            
+	            if(!line.match(/([a-z]+)/g)) {
+                newStylus += "\n" + line;
+                continue;
+	            }
+	           
+	          	if(line.match(/(  )/g) == null){
+	          		currentTabCount = 0;
+          		}else{
+	          		currentTabCount = line.match(/(  )/g).length;
+	          	}
+	        
+	            if(lastTabCount > currentTabCount) {
+								newStylus += "\n}\n" + line;							
+	            } else {
+                newStylus += "\n" + line;
+	            }
+	         
+	           	if(line == lines[lines.length -1]){
+	            	newStylus += "\n}\n";
+	            }
 
-						//.replace(/(([a-zA-Z-]+: [0-9]+[a-zA-Z]+)|([a-zA-Z-]+: [a-zA-Z-0-9]+\%?)|([a-zA-Z-]+: \.[0-9a-zA-Z]+))/g, "$1;")
+	            lastTabCount = currentTabCount;
+	           
+						}
 
-						
+						var newStylus2 = "";
+						var lastTabCount2 = 0;
+						var currentTabCount2 = 0;
+						var lines2 = newStylus.split("\n");
+						 
+						for (var j = 0; j < lines2.length; j++) {
+	            var line2 = lines2[j];
+	            
+	            if(!line.match(/([a-z]+)/g)) {
+                newStylus2 += "\n" + line2;
+                continue;
+	            }
+	           
+	          	if(line2.match(/(    )/g) == null){
+	          		currentTabCount2 = 0;
+          		}else{
+	          		currentTabCount2 = line2.match(/(    )/g).length;
+	          	}
+	        
+	            if(lastTabCount2 > currentTabCount2) {
+								newStylus2 += "\n  }\n" + line2;							
+	            } else {
+                newStylus2 += "\n" + line2;
+	            }
+	         	         
+	            lastTabCount2 = currentTabCount2;
+	           
+						}
 
+						var newStylus3 = "";
+						var lastTabCount3 = 0;
+						var currentTabCount3 = 0;
+						var lines3 = newStylus2.split("\n");
+						 
+						for (var k = 0; k < lines3.length; k++) {
+	            var line3 = lines3[k];
+	            
+	            if(!line.match(/([a-z]+)/g)) {
+                newStylus3 += "\n" + line3;
+                continue;
+	            }
+	           
+	          	if(line3.match(/(      )/g) == null){
+	          		currentTabCount3 = 0;
+          		}else{
+	          		currentTabCount3 = line3.match(/(      )/g).length;
+	          	}
+	        
+	            if(lastTabCount3 > currentTabCount3) {
+								newStylus3 += "\n    }\n" + line3;							
+	            } else {
+                newStylus3 += "\n" + line3;
+	            }
+	         	         
+	            lastTabCount3 = currentTabCount3;
+	           
+						}
 
-						//add ending bracket
-						//.replace(/(.[a-zA-Z]+\(\)\{\n[^][ -a-zA-Z]+\n[^][ -a-zA-Z][^]+)(\.)/g, "$1\n}\n$2")
+						//grunt.log.writeln(newStylus3);
+						return newStylus3;
 					}
 				  
 					var scss = convertStylScss(fs.readFileSync(f.src[0], "utf-8"));
 					fs.writeFileSync(destFile, scss);
+
+					if(scss != ''){
+						grunt.verbose.writeln('File ' + chalk.cyan(destFile) + ' created.');
+					}
 		  	}
 		  }
     }, done);
