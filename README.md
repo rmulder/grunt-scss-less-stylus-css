@@ -47,5 +47,8 @@ content
     width: 40px
 	box
 	  color: #fff
+```
+
+From Stylus to LESS or SCSS you can also only use variables and mixins. Functions or Keyframes arn't implemented.
 	
 	
